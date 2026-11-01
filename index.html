@@ -270,6 +270,19 @@ footer .wrap{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
 <script>
 (function(){
   var ENDPOINT='https://script.google.com/macros/s/AKfycbzJcwv_rKfYrthWBPTxr7xply3I58UES-6FyxkdT3FYk3LvLUXXCvuQBtm-ef9c4Qjs/exec';
+  // Komunikace se skriptem přes element script (obchází omezení CORS u Google Apps Script)
+  function jsonp(params){
+    return new Promise(function(resolve,reject){
+      var cb='cb'+Date.now()+Math.floor(Math.random()*1e6), sc=document.createElement('script'), done=false, timer;
+      function cleanup(){done=true;clearTimeout(timer);delete window[cb];if(sc.parentNode)sc.parentNode.removeChild(sc);}
+      window[cb]=function(j){if(done)return;cleanup();resolve(j);};
+      sc.onerror=function(){if(done)return;cleanup();reject(new Error('net'));};
+      timer=setTimeout(function(){if(done)return;cleanup();reject(new Error('timeout'));},20000);
+      var q=Object.keys(params).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);}).join('&');
+      sc.src=ENDPOINT+'?'+q+'&callback='+cb;
+      document.head.appendChild(sc);
+    });
+  }
   var fromEl=document.getElementById('f-from'), toEl=document.getElementById('f-to');
   var calEl=document.getElementById('cal');
   var busy={}, status='', selFrom='', selTo='', limit='9999-12-31';
@@ -333,7 +346,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
   });
   function loadBusy(){
     status='Načítám obsazené termíny…';render();
-    return fetch(ENDPOINT+'?action=busy').then(function(r){return r.json();}).then(function(j){
+    return jsonp({action:'busy'}).then(function(j){
       busy={};(j.busy||[]).forEach(function(d){busy[d]=1;});status='';
       if(selFrom&&selTo){for(var d=selFrom;d<selTo;d=addDays(d,1)){if(busy[d]){reset();break;}}}
     }).catch(function(){status='Dostupnost se nepodařilo načíst, termín ověříme po odeslání.';}).then(render);
@@ -353,8 +366,8 @@ footer .wrap{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
     var data={email:document.getElementById('f-mail').value,from:selFrom,to:selTo,
       guests:document.getElementById('f-guests').value,message:document.getElementById('f-msg').value,web:''};
     btn.disabled=true;btn.textContent='Odesílám…';box.textContent='';
-    fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(data)})
-    .then(function(r){return r.json();}).then(function(j){
+    jsonp({action:'submit',data:JSON.stringify(data)})
+    .then(function(j){
       if(!j||!j.ok){throw new Error(j&&j.error||'x');}
       box.textContent='Děkujeme, poptávku jsme přijali a termín předběžně zablokovali. Potvrdíme ho vám e-mailem.';
       form.reset();reset();return loadBusy();
