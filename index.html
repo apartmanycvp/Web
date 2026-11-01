@@ -112,6 +112,25 @@ textarea{min-height:100px;resize:vertical}
 @media(max-width:820px){.booking{grid-template-columns:1fr;gap:32px}}
 @media(max-width:520px){form{grid-template-columns:1fr}.full{grid-column:auto}}
 
+/* kalendář */
+.cal{border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--bg)}
+.cal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px}
+.cal-nav{background:none;border:1px solid var(--line);border-radius:8px;color:inherit;width:36px;height:36px;cursor:pointer;font-size:1rem}
+.cal-nav:disabled{opacity:.35;cursor:default}
+.cal-title{font-weight:600}
+.cal-months{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:700px){.cal-months{grid-template-columns:1fr}.cal-m.m2{display:none}}
+.cal-m h4{margin:0 0 6px;text-align:center;font:600 1rem var(--sans);text-transform:capitalize}
+.cal-g{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+.cal-g span{font-size:.75rem;color:var(--muted)}
+.cal-d{aspect-ratio:1;border:0;background:transparent;color:inherit;font:inherit;font-size:.92rem;border-radius:8px;cursor:pointer;padding:0}
+.cal-d:hover:not(:disabled){background:var(--line)}
+.cal-d:disabled{cursor:default;color:var(--muted);opacity:.4}
+.cal-d.busy{text-decoration:line-through}
+.cal-d.rng{background:color-mix(in srgb,var(--accent) 22%,transparent)}
+.cal-d.sel{background:var(--accent);color:var(--accent-ink);opacity:1}
+.cal-sum{margin-top:10px;font-size:.92rem}
+.cal-note{font-size:.82rem;color:var(--muted);margin-top:4px}
 footer{padding:44px 0;border-top:1px solid var(--line);color:var(--muted);font-size:.92rem}
 footer .wrap{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
@@ -225,8 +244,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
       <p class="note">Jde o nezávaznou poptávku, nikoli potvrzenou rezervaci.</p>
       <form id="inq">
         <label class="full">Váš e-mail<input type="email" id="f-mail" required autocomplete="email"></label>
-        <label>Příjezd<input type="date" id="f-from" required></label>
-        <label>Odjezd<input type="date" id="f-to" required></label>
+        <div class="full"><div id="cal" class="cal" aria-label="Výběr termínu pobytu"></div><input type="hidden" id="f-from"><input type="hidden" id="f-to"></div>
         <label class="full">Počet hostů
           <select id="f-guests">
             <option>1 host</option><option selected>2 hosté</option><option>3 hosté</option>
@@ -251,12 +269,75 @@ footer .wrap{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
 
 <script>
 (function(){
-  var from=document.getElementById('f-from'), to=document.getElementById('f-to');
-  var today=new Date().toISOString().slice(0,10);
-  from.min=today; to.min=today;
-  from.addEventListener('change',function(){ to.min=from.value||today; if(to.value&&to.value<from.value){to.value=from.value;} });
-  // Adresa Google Apps Scriptu (viz návod). Po vložení adresy začne formulář odesílat a rezervovat v kalendáři.
   var ENDPOINT='https://script.google.com/macros/s/AKfycbzI-yp8_eSbeGzqZcrLybgK35DWKr2DDyvG3mPqy2TJWNRPXur9b1nfPZ1i2573QMQJ/exec';
+  var fromEl=document.getElementById('f-from'), toEl=document.getElementById('f-to');
+  var calEl=document.getElementById('cal');
+  var busy={}, status='', selFrom='', selTo='', limit='9999-12-31';
+  function p2(n){return n<10?'0'+n:''+n;}
+  function iso(d){return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());}
+  function parse(s){var a=s.split('-');return new Date(+a[0],+a[1]-1,+a[2]);}
+  function addDays(s,n){var d=parse(s);d.setDate(d.getDate()+n);return iso(d);}
+  function nightsBetween(a,b){return Math.round((parse(b)-parse(a))/86400000);}
+  function fmt(s){var d=parse(s);return d.getDate()+'. '+(d.getMonth()+1)+'. '+d.getFullYear();}
+  var today=iso(new Date());
+  var view=new Date(); view.setDate(1);
+  var minView=new Date(view.getTime());
+  function limitFor(a){var d=addDays(a,1),i;for(i=0;i<400;i++){if(busy[d])return d;d=addDays(d,1);}return '9999-12-31';}
+  function state(ds){
+    if(ds<today) return 'off';
+    if(selFrom&&!selTo){
+      if(ds===selFrom) return 'sel';
+      if(ds>selFrom) return ds<=limit?'ok':(busy[ds]?'busy':'off');
+      return busy[ds]?'busy':'ok';
+    }
+    if(ds===selFrom||ds===selTo) return 'sel';
+    if(selFrom&&selTo&&ds>selFrom&&ds<selTo) return 'rng';
+    return busy[ds]?'busy':'ok';
+  }
+  function monthHtml(y,m,cls){
+    var first=(new Date(y,m,1).getDay()+6)%7, days=new Date(y,m+1,0).getDate(), i, d, h='';
+    h+='<div class="cal-m '+cls+'"><h4>'+new Date(y,m,1).toLocaleDateString('cs-CZ',{month:'long',year:'numeric'})+'</h4><div class="cal-g">';
+    ['Po','Út','St','Čt','Pá','So','Ne'].forEach(function(n){h+='<span>'+n+'</span>';});
+    for(i=0;i<first;i++) h+='<i></i>';
+    for(d=1;d<=days;d++){
+      var ds=y+'-'+p2(m+1)+'-'+p2(d), st=state(ds);
+      var c='cal-d'+(st==='busy'?' busy':'')+(st==='sel'?' sel':'')+(st==='rng'?' rng':'');
+      h+='<button type="button" class="'+c+'" data-d="'+ds+'"'+((st==='off'||st==='busy')?' disabled':'')+' aria-label="'+d+'. '+(m+1)+'. '+y+(st==='busy'?', obsazeno':'')+'">'+d+'</button>';
+    }
+    return h+'</div></div>';
+  }
+  function summary(){
+    if(status) return status;
+    if(selFrom&&selTo){var n=nightsBetween(selFrom,selTo);return 'Příjezd '+fmt(selFrom)+' · Odjezd '+fmt(selTo)+' ('+n+' '+(n===1?'noc':(n<5?'noci':'nocí'))+')';}
+    if(selFrom) return 'Příjezd: '+fmt(selFrom)+'. Nyní vyberte odjezd.';
+    return 'Vyberte v kalendáři příjezd a odjezd.';
+  }
+  function render(){
+    var y=view.getFullYear(), m=view.getMonth(), next=new Date(y,m+1,1);
+    calEl.innerHTML='<div class="cal-top"><button type="button" class="cal-nav" data-nav="-1" aria-label="Předchozí měsíc"'+(view<=minView?' disabled':'')+'>‹</button><span class="cal-title">Termín pobytu</span><button type="button" class="cal-nav" data-nav="1" aria-label="Další měsíc">›</button></div>'+
+      '<div class="cal-months">'+monthHtml(y,m,'m1')+monthHtml(next.getFullYear(),next.getMonth(),'m2')+'</div>'+
+      '<div class="cal-sum" aria-live="polite">'+summary()+'</div><div class="cal-note">Přeškrtnuté dny jsou obsazené.</div>';
+  }
+  function sync(){fromEl.value=selFrom;toEl.value=selTo;}
+  function reset(){selFrom='';selTo='';limit='9999-12-31';sync();}
+  function pick(ds){
+    if(selFrom&&!selTo&&ds>selFrom&&ds<=limit){selTo=ds;}
+    else if(!busy[ds]&&ds>=today){selFrom=ds;selTo='';limit=limitFor(ds);}
+    else return;
+    sync();render();
+  }
+  calEl.addEventListener('click',function(e){
+    var t=e.target.closest?e.target.closest('button'):null; if(!t) return;
+    if(t.getAttribute('data-nav')){view=new Date(view.getFullYear(),view.getMonth()+ +t.getAttribute('data-nav'),1);render();return;}
+    if(t.getAttribute('data-d')) pick(t.getAttribute('data-d'));
+  });
+  function loadBusy(){
+    status='Načítám obsazené termíny…';render();
+    return fetch(ENDPOINT+'?action=busy').then(function(r){return r.json();}).then(function(j){
+      busy={};(j.busy||[]).forEach(function(d){busy[d]=1;});status='';
+      if(selFrom&&selTo){for(var d=selFrom;d<selTo;d=addDays(d,1)){if(busy[d]){reset();break;}}}
+    }).catch(function(){status='Dostupnost se nepodařilo načíst, termín ověříme po odeslání.';}).then(render);
+  }
   var form=document.getElementById('inq');
   form.addEventListener('submit',function(e){
     e.preventDefault();
@@ -268,32 +349,22 @@ footer .wrap{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
       form.insertAdjacentElement('afterend',box);
     }
     var mailLink='<a href="mailto:apartmanycvp@gmail.com">apartmanycvp@gmail.com</a>';
-    if(!ENDPOINT){box.innerHTML='Odesílání se právě nastavuje. Napište nám prosím na '+mailLink+'.';return;}
-    var data={
-      email:document.getElementById('f-mail').value,
-      from:from.value,
-      to:to.value,
-      guests:document.getElementById('f-guests').value,
-      message:document.getElementById('f-msg').value,
-      web:''
-    };
+    if(!selFrom||!selTo){box.textContent='Vyberte prosím v kalendáři příjezd a odjezd.';return;}
+    var data={email:document.getElementById('f-mail').value,from:selFrom,to:selTo,
+      guests:document.getElementById('f-guests').value,message:document.getElementById('f-msg').value,web:''};
     btn.disabled=true;btn.textContent='Odesílám…';box.textContent='';
-    fetch(ENDPOINT,{
-      method:'POST',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify(data)
-    }).then(function(r){return r.json();}).then(function(j){
-      if(!j||!j.ok){ throw new Error(j&&j.error||'x'); }
+    fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(data)})
+    .then(function(r){return r.json();}).then(function(j){
+      if(!j||!j.ok){throw new Error(j&&j.error||'x');}
       box.textContent='Děkujeme, poptávku jsme přijali a termín předběžně zablokovali. Potvrdíme ho vám e-mailem.';
-      form.reset();
+      form.reset();reset();return loadBusy();
     }).catch(function(err){
-      box.innerHTML=(err&&err.message==='dates')
-        ? 'Zkontrolujte prosím data pobytu. Odjezd musí být po příjezdu.'
-        : 'Odeslání se nepodařilo. Napište nám prosím na '+mailLink+'.';
-    }).then(function(){
-      btn.disabled=false;btn.textContent='Odeslat poptávku';
-    });
+      var c=err&&err.message;
+      if(c==='busy'){box.textContent='Tento termín je bohužel už obsazený. Vyberte prosím jiný.';reset();return loadBusy();}
+      box.innerHTML=(c==='dates')?'Zkontrolujte prosím data pobytu.':'Odeslání se nepodařilo. Napište nám prosím na '+mailLink+'.';
+    }).then(function(){btn.disabled=false;btn.textContent='Odeslat poptávku';});
   });
+  render();loadBusy();
 })();
 </script>
 </body>
