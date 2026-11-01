@@ -253,13 +253,41 @@ footer .wrap{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
   var today=new Date().toISOString().slice(0,10);
   from.min=today; to.min=today;
   from.addEventListener('change',function(){ to.min=from.value||today; if(to.value&&to.value<from.value){to.value=from.value;} });
-  document.getElementById('inq').addEventListener('submit',function(e){
+  var form=document.getElementById('inq');
+  form.addEventListener('submit',function(e){
     e.preventDefault();
-    var body='Dobrý den,\n\nzajímá mě volný termín v apartmánu Costa Plana.\n\nPříjezd: '+from.value+'\nOdjezd: '+to.value+
-      '\nPočet hostů: '+document.getElementById('f-guests').value+
-      '\nMůj e-mail: '+document.getElementById('f-mail').value+
-      '\n\n'+document.getElementById('f-msg').value;
-    window.location.href='mailto:apartmanycvp@gmail.com?subject='+encodeURIComponent('Poptávka termínu – Costa Plana')+'&body='+encodeURIComponent(body);
+    var btn=form.querySelector('button[type=submit]');
+    var box=document.getElementById('sent');
+    if(!box){
+      box=document.createElement('div');box.id='sent';box.setAttribute('role','status');
+      box.style.cssText='margin-top:20px;padding:18px 20px;border:1px solid var(--line);border-radius:10px;background:var(--bg)';
+      form.insertAdjacentElement('afterend',box);
+    }
+    var data={
+      email:document.getElementById('f-mail').value,
+      'Příjezd':from.value,
+      'Odjezd':to.value,
+      'Počet hostů':document.getElementById('f-guests').value,
+      'Zpráva':document.getElementById('f-msg').value,
+      _subject:'Poptávka termínu – Costa Plana',
+      _template:'table',
+      _honey:''
+    };
+    btn.disabled=true;btn.textContent='Odesílám…';box.textContent='';
+    fetch('https://formsubmit.co/ajax/apartmanycvp@gmail.com',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body:JSON.stringify(data)
+    }).then(function(r){
+      return r.json().then(function(j){ if(!r.ok||j.success===false||j.success==='false'){throw new Error('x');} });
+    }).then(function(){
+      box.textContent='Děkujeme, poptávku jsme přijali. Ozveme se vám na zadaný e-mail.';
+      form.reset();
+    }).catch(function(){
+      box.innerHTML='Odeslání se nepodařilo. Napište nám prosím na <a href="mailto:apartmanycvp@gmail.com">apartmanycvp@gmail.com</a>.';
+    }).then(function(){
+      btn.disabled=false;btn.textContent='Odeslat poptávku';
+    });
   });
 })();
 </script>
