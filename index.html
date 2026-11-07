@@ -122,6 +122,14 @@ textarea{min-height:100px;resize:vertical}
 .poi p{color:var(--muted);margin:0;font-size:.97rem}
 @media(max-width:900px){.pois{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.pois{grid-template-columns:1fr}}
+.fam{margin-top:22px;padding:18px 20px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.fam h3{margin-bottom:8px}
+.fam p{font-size:.97rem;margin:0 0 8px}
+.fam p:last-child{margin:0}
+.opts{border:0;padding:0;margin:0;display:flex;gap:10px 24px;flex-wrap:wrap}
+.opts legend{padding:0;margin-bottom:8px;font-weight:500;font-size:.95rem}
+.chk{display:flex;align-items:center;gap:8px;font-weight:400}
+.chk input{width:auto}
 /* kalendář */
 .cal{border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--bg)}
 .cal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px}
@@ -250,6 +258,10 @@ footer .wrap{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
       <p>Napište nám svůj vysněný termín. Ověříme dostupnost a připravíme nabídku pro váš pobyt.</p>
       <div class="price">Cena za noc: na vyžádání</div>
       <p class="note">Konečná cena se odvíjí od termínu a délky pobytu. Přesný ceník a podmínky vám pošleme s nabídkou.</p>
+      <div class="fam"><h3>Pro rodiny s dětmi</h3>
+        <p>Apartmán je určený pro nejvýše <strong>4 osoby</strong>. Postele a matrace jsou připravené pro 4 hosty, včetně dětí.</p>
+        <p>K dispozici je <strong>dětská postýlka</strong> a <strong>dětská židlička</strong>. Stačí je zaškrtnout v poptávce a my je připravíme na váš příjezd.</p>
+      </div>
     </div>
     <div>
       <h3>Poptat volný termín</h3>
@@ -259,10 +271,10 @@ footer .wrap{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
         <div class="full"><div id="cal" class="cal" aria-label="Výběr termínu pobytu"></div><input type="hidden" id="f-from"><input type="hidden" id="f-to"></div>
         <label class="full">Počet hostů
           <select id="f-guests">
-            <option>1 host</option><option selected>2 hosté</option><option>3 hosté</option>
-            <option>4 hosté</option><option>5 hostů</option><option>6 hostů</option>
+            <option>1 host</option><option selected>2 hosté</option><option>3 hosté</option><option>4 hosté</option>
           </select>
         </label>
+        <fieldset class="full opts"><legend>Pro děti</legend><label class="chk"><input type="checkbox" id="f-cot"> Dětská postýlka</label><label class="chk"><input type="checkbox" id="f-chair"> Dětská židlička</label></fieldset>
         <label class="full">Zpráva<textarea id="f-msg"></textarea></label>
         <div class="full"><button class="btn" type="submit">Odeslat poptávku</button></div>
       </form>
@@ -376,7 +388,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
     var mailLink='<a href="mailto:apartmanycvp@gmail.com">apartmanycvp@gmail.com</a>';
     if(!selFrom||!selTo){box.textContent='Vyberte prosím v kalendáři příjezd a odjezd.';return;}
     var data={email:document.getElementById('f-mail').value,from:selFrom,to:selTo,
-      guests:document.getElementById('f-guests').value,message:document.getElementById('f-msg').value,web:''};
+      guests:document.getElementById('f-guests').value,message:document.getElementById('f-msg').value,cot:document.getElementById('f-cot').checked,chair:document.getElementById('f-chair').checked,web:''};
     btn.disabled=true;btn.textContent='Odesílám…';box.textContent='';
     jsonp({action:'submit',data:JSON.stringify(data)})
     .then(function(j){
