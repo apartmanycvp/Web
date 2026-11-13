@@ -270,16 +270,8 @@ footer .wrap{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
       <h2>Dopřejte si pár dní jen pro sebe.</h2>
       <p>Napište nám svůj vysněný termín. Ověříme dostupnost a připravíme nabídku pro váš pobyt.</p>
       <h3 class="tt">Ceník za noc</h3>
-      <dl class="tariff">
-        <div><dt>21. 12. – 2. 1.</dt><dd>2&nbsp;000&nbsp;Kč</dd></div>
-        <div><dt>Leden</dt><dd>1&nbsp;400&nbsp;Kč</dd></div>
-        <div><dt>Únor</dt><dd>2&nbsp;000&nbsp;Kč</dd></div>
-        <div><dt>Březen – květen</dt><dd>1&nbsp;400&nbsp;Kč</dd></div>
-        <div><dt>Červen</dt><dd>2&nbsp;000&nbsp;Kč</dd></div>
-        <div><dt>Červenec – srpen</dt><dd>2&nbsp;500&nbsp;Kč</dd></div>
-        <div><dt>Září – prosinec</dt><dd>1&nbsp;400&nbsp;Kč</dd></div>
-      </dl>
-      <p class="note">K ceně se připočítává jednorázový úklid <strong>1&nbsp;000&nbsp;Kč</strong> a poplatek <strong>40&nbsp;Kč za osobu a noc</strong>. Cena za pobyt se spočítá při výběru termínu.</p>
+      <dl class="tariff" id="tariff"></dl>
+      <p class="note" id="tariffnote"></p>
       <div class="fam"><h3>Pro rodiny s dětmi</h3>
         <p>Apartmán je určený pro nejvýše <strong>4 osoby</strong>. Postele a matrace jsou připravené pro 4 hosty, včetně dětí.</p>
         <p>K dispozici je <strong>dětská postýlka</strong> a <strong>dětská židlička</strong>. Stačí je zaškrtnout v poptávce a my je připravíme na váš příjezd.</p>
@@ -377,18 +369,29 @@ footer .wrap{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
       '<div class="cal-months">'+monthHtml(y,m,'m1')+monthHtml(next.getFullYear(),next.getMonth(),'m2')+'</div>'+
       '<div class="cal-sum" aria-live="polite">'+summary()+'</div><div class="cal-note">Přeškrtnuté dny jsou obsazené.</div>';
   }
-  // Ceny (Kč). Pozdější pravidlo přebíjí dřívější. Formát data: MM-DD
-  var PRICES={cleaning:1000, perPersonNight:40, rules:[
-    {from:'01-01',to:'12-31',price:1400},
-    {from:'02-01',to:'02-29',price:2000},
-    {from:'06-01',to:'06-30',price:2000},
-    {from:'07-01',to:'08-31',price:2500},
-    {from:'12-21',to:'12-31',price:2000},
-    {from:'01-01',to:'01-02',price:2000}
+  // Ceny (Kč). Výchozí hodnoty; skutečné ceny se načtou ze skriptu (nastavují se v administraci).
+  // Pozdější pravidlo přebíjí dřívější. Datum MM-DD, od > do = přes konec roku.
+  var PRICES={cleaning:1000, perPersonNight:40, defaultPrice:1400, rules:[
+    {label:'Leden',from:'01-01',to:'01-31',price:1400},
+    {label:'Únor',from:'02-01',to:'02-29',price:2000},
+    {label:'Březen – květen',from:'03-01',to:'05-31',price:1400},
+    {label:'Červen',from:'06-01',to:'06-30',price:2000},
+    {label:'Červenec – srpen',from:'07-01',to:'08-31',price:2500},
+    {label:'Září – prosinec',from:'09-01',to:'12-31',price:1400},
+    {label:'21. 12. – 2. 1.',from:'12-21',to:'01-02',price:2000}
   ]};
   var lastPrice='';
   function kc(n){return n.toLocaleString('cs-CZ').replace(/\s/g,'\u00a0')+'\u00a0Kč';}
-  function nightPrice(ds){var md=ds.slice(5),p=0;PRICES.rules.forEach(function(r){if(md>=r.from&&md<=r.to)p=r.price;});return p;}
+  function esc(t){return String(t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function hit(r,md){return r.from<=r.to?(md>=r.from&&md<=r.to):(md>=r.from||md<=r.to);}
+  function nightPrice(ds){var md=ds.slice(5),p=PRICES.defaultPrice;PRICES.rules.forEach(function(r){if(hit(r,md))p=r.price;});return p;}
+  function coversYear(){var d=new Date(2024,0,1),i,md,ok;for(i=0;i<366;i++){md=p2(d.getMonth()+1)+'-'+p2(d.getDate());ok=PRICES.rules.some(function(r){return hit(r,md);});if(!ok)return false;d.setDate(d.getDate()+1);}return true;}
+  function renderTariff(){
+    var h='';PRICES.rules.forEach(function(r){h+='<div><dt>'+esc(r.label)+'</dt><dd>'+kc(r.price)+'</dd></div>';});
+    if(!coversYear())h+='<div><dt>Ostatní období</dt><dd>'+kc(PRICES.defaultPrice)+'</dd></div>';
+    document.getElementById('tariff').innerHTML=h;
+    document.getElementById('tariffnote').innerHTML='K ceně se připočítává jednorázový úklid <strong>'+kc(PRICES.cleaning)+'</strong> a poplatek <strong>'+kc(PRICES.perPersonNight)+' za osobu a noc</strong>. Cena za pobyt se spočítá při výběru termínu.';
+  }
   function updatePrice(){
     var box=document.getElementById('pricebox'); lastPrice='';
     if(!selFrom||!selTo){box.innerHTML='';return;}
@@ -450,6 +453,10 @@ footer .wrap{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
     }).then(function(){btn.disabled=false;btn.textContent='Odeslat poptávku';});
   });
   document.getElementById('f-guests').addEventListener('change',updatePrice);
+  renderTariff();
+  jsonp({action:'prices'}).then(function(j){
+    if(j&&j.ok&&j.prices&&Array.isArray(j.prices.rules)){PRICES=j.prices;}
+  }).catch(function(){}).then(function(){renderTariff();updatePrice();});
   render();loadBusy();
 })();
 </script>
