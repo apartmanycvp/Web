@@ -206,10 +206,10 @@ $('loginBtn').onclick=function(){
 };
 $('logout').onclick=function(){try{localStorage.removeItem(KEY);}catch(e){}show(false);$('loginInfo').textContent='';};
 (function(){
-  var m=/#login=(.+)$/.exec(location.hash);
+  var m=/#(login|owner)=(.+)$/.exec(location.hash);
   if(m){
     history.replaceState(null,'',location.pathname);
-    jsonp({action:'session',t:m[1]}).then(function(r){
+    jsonp(m[1]==='owner'?{action:'owner',k:m[2]}:{action:'session',t:m[2]}).then(function(r){
       if(r&&r.ok){try{localStorage.setItem(KEY,r.session);}catch(e){}show(true);load(false);}
       else{show(false);$('loginInfo').textContent='Odkaz už neplatí nebo byl použit. Vyžádejte si nový.';}
     }).catch(function(){show(false);$('loginInfo').textContent='Spojení se skriptem selhalo.';});
