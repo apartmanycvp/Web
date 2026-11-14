@@ -211,7 +211,7 @@ $('logout').onclick=function(){try{localStorage.removeItem(KEY);}catch(e){}show(
     history.replaceState(null,'',location.pathname);
     jsonp(m[1]==='owner'?{action:'owner',k:m[2]}:{action:'session',t:m[2]}).then(function(r){
       if(r&&r.ok){try{localStorage.setItem(KEY,r.session);}catch(e){}show(true);load(false);}
-      else{show(false);$('loginInfo').textContent='Odkaz už neplatí nebo byl použit. Vyžádejte si nový.';}
+      else{show(false);$('loginInfo').textContent=(r&&r.error==='action')?'Skript ve Google ještě běží ve staré verzi. Nasaďte novou verzi (Nasadit, Spravovat nasazení, tužka, Nová verze).':(r&&r.error==='limit')?'Příliš mnoho pokusů, zkuste to za hodinu.':'Odkaz neplatí. Pro majitele zkopírujte znovu odkaz z funkce showOwnerLink, ostatní si vyžádají nový e-mail.';}
     }).catch(function(){show(false);$('loginInfo').textContent='Spojení se skriptem selhalo.';});
   }else if(sess()){show(true);load(false);}
   else show(false);
